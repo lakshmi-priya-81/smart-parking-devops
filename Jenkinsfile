@@ -9,11 +9,11 @@ pipeline {
         }
 
         stage('Validate Python') {
-            steps {
-                bat 'py -3 --version'
-                bat 'py -3 -m py_compile app.py'
-            }
-        }
+    steps {
+        bat '"C:\\Users\\Lakshmi\\AppData\\Local\\Programs\\Python\\Python312\\python.exe" --version'
+        bat '"C:\\Users\\Lakshmi\\AppData\\Local\\Programs\\Python\\Python312\\python.exe" -m py_compile app.py'
+    }
+}
 
         stage('Check Docker') {
             steps {
