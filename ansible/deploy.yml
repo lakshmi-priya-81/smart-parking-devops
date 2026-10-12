@@ -1,0 +1,31 @@
+---
+- name: Build and deploy Smart Parking application with Docker
+  hosts: local
+  gather_facts: false
+  vars:
+    image_name: smart-parking-app:ansible
+    container_name: smart-parking-ansible
+    host_port: 5002
+  tasks:
+    - name: Build Docker image from project root
+      community.docker.docker_image:
+        name: "{{ image_name }}"
+        source: build
+        build:
+          path: "{{ playbook_dir }}/.."
+
+    - name: Ensure persistent data volume exists
+      community.docker.docker_volume:
+        name: parking_data_ansible
+        state: present
+
+    - name: Start Smart Parking container
+      community.docker.docker_container:
+        name: "{{ container_name }}"
+        image: "{{ image_name }}"
+        state: started
+        restart_policy: unless-stopped
+        published_ports:
+          - "{{ host_port }}:5000"
+        volumes:
+          - parking_data_ansible:/app/data
