@@ -16,11 +16,11 @@ pipeline {
 }
 
         stage('Check Docker') {
-            steps {
-                bat 'docker --version'
-                bat 'docker info'
-            }
-        }
+    steps {
+        bat '"C:\\Users\\Lakshmi\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" --version'
+        bat '"C:\\Users\\Lakshmi\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" info'
+    }
+}
 
         stage('Build Docker Image') {
             steps {
