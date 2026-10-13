@@ -23,10 +23,10 @@ pipeline {
 }
 
         stage('Build Docker Image') {
-            steps {
-                bat 'docker build -t smart-parking-app:latest .'
-            }
-        }
+    steps {
+        bat '"C:\\Users\\Lakshmi\\AppData\\Local\\Programs\\DockerDesktop\\resources\\bin\\docker.exe" build -t smart-parking-app:latest .'
+    }
+}
     }
 
     post {
