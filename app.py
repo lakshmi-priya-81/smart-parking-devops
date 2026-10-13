@@ -4,16 +4,36 @@ import io
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from contextlib import closing
+from flask import (Flask, render_template, request, redirect, url_for, flash, jsonify,
+                   Response, send_from_directory, abort)
 
-app = Flask(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+# Normal layout: templates/ and static/ folders next to app.py.
+# Fallback: if every file was dropped flat into one folder, still run.
+NESTED_LAYOUT = (BASE_DIR / "templates" / "base.html").exists()
+
+if NESTED_LAYOUT:
+    app = Flask(__name__, template_folder=str(BASE_DIR / "templates"),
+                static_folder=str(BASE_DIR / "static"))
+else:
+    app = Flask(__name__, template_folder=str(BASE_DIR), static_folder=None)
+    FLAT_STATIC = {"style.css", "app.js"}
+
+    @app.get("/static/<path:filename>", endpoint="static")
+    def flat_static(filename):
+        if filename not in FLAT_STATIC:
+            abort(404)
+        return send_from_directory(str(BASE_DIR), filename)
+
 app.secret_key = os.environ.get("SECRET_KEY", "change-this-for-production")
-DB_PATH = os.environ.get("DB_PATH", str(Path(__file__).parent / "data" / "parking.db"))
+DB_PATH = os.environ.get("DB_PATH", str(BASE_DIR / "data" / "parking.db"))
 TOTAL_SLOTS = max(1, min(int(os.environ.get("TOTAL_SLOTS", "12")), 200))
 VALID_STATUSES = {"available", "reserved", "occupied"}
 
 
 def db():
+    """Open a connection. Use as: with closing(db()) as conn: (closes the file handle)."""
     Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH, timeout=10)
     connection.row_factory = sqlite3.Row
@@ -22,7 +42,7 @@ def db():
 
 
 def init_db():
-    with db() as conn:
+    with closing(db()) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS slots (
             id INTEGER PRIMARY KEY, label TEXT UNIQUE NOT NULL,
             status TEXT NOT NULL DEFAULT 'available', vehicle_number TEXT,
@@ -42,14 +62,19 @@ def record_activity(conn, label, action, detail=""):
                  (label, action, detail, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
 
+_initialised = set()
+
+
 @app.before_request
 def ensure_database():
-    init_db()
+    if DB_PATH not in _initialised:
+        init_db()
+        _initialised.add(DB_PATH)
 
 
 @app.get("/")
 def index():
-    with db() as conn:
+    with closing(db()) as conn:
         slots = conn.execute("SELECT * FROM slots ORDER BY id").fetchall()
         activity = conn.execute("SELECT * FROM activity ORDER BY id DESC LIMIT 6").fetchall()
     occupied = sum(s["status"] == "occupied" for s in slots)
@@ -70,7 +95,7 @@ def reserve(sid):
     if len(vehicle) > 20 or len(name) > 60:
         flash("Vehicle number or driver name is too long.", "error")
         return redirect(url_for("index"))
-    with db() as conn:
+    with closing(db()) as conn:
         row = conn.execute("SELECT label FROM slots WHERE id=? AND status='available'", (sid,)).fetchone()
         if row:
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -86,7 +111,7 @@ def reserve(sid):
 
 @app.post("/occupy/<int:sid>")
 def occupy(sid):
-    with db() as conn:
+    with closing(db()) as conn:
         row = conn.execute("SELECT label,status FROM slots WHERE id=?", (sid,)).fetchone()
         if row and row["status"] in ("available", "reserved"):
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -101,7 +126,7 @@ def occupy(sid):
 
 @app.post("/release/<int:sid>")
 def release(sid):
-    with db() as conn:
+    with closing(db()) as conn:
         row = conn.execute("SELECT label,status,vehicle_number FROM slots WHERE id=?", (sid,)).fetchone()
         if row and row["status"] != "available":
             detail = row["vehicle_number"] or "Vehicle"
@@ -118,7 +143,7 @@ def release(sid):
 
 @app.get("/admin")
 def admin():
-    with db() as conn:
+    with closing(db()) as conn:
         slots = conn.execute("SELECT * FROM slots ORDER BY id").fetchall()
         activity = conn.execute("SELECT * FROM activity ORDER BY id DESC LIMIT 20").fetchall()
     counts = {status: sum(s["status"] == status for s in slots) for status in VALID_STATUSES}
@@ -128,7 +153,7 @@ def admin():
 @app.get("/admin/export.csv")
 def export_csv():
     """Download the current parking inventory as a CSV file for reporting."""
-    with db() as conn:
+    with closing(db()) as conn:
         rows = conn.execute(
             "SELECT label, status, vehicle_number, reserved_by, updated_at FROM slots ORDER BY id"
         ).fetchall()
@@ -147,7 +172,7 @@ def export_csv():
 def health():
     """Machine-readable health endpoint for Docker/Jenkins; not a user-facing page."""
     try:
-        with db() as conn:
+        with closing(db()) as conn:
             conn.execute("SELECT 1").fetchone()
             slot_count = conn.execute("SELECT COUNT(*) FROM slots").fetchone()[0]
         return jsonify(status="ok", service="smart-parking", database="connected", slots=slot_count), 200
@@ -157,14 +182,14 @@ def health():
 
 @app.get("/api/slots")
 def api_slots():
-    with db() as conn:
+    with closing(db()) as conn:
         rows = conn.execute("SELECT id,label,status,vehicle_number,reserved_by,updated_at FROM slots ORDER BY id").fetchall()
     return jsonify([dict(row) for row in rows])
 
 
 @app.get("/api/summary")
 def api_summary():
-    with db() as conn:
+    with closing(db()) as conn:
         rows = conn.execute("SELECT status,COUNT(*) AS count FROM slots GROUP BY status").fetchall()
     counts = {status: 0 for status in VALID_STATUSES}
     counts.update({row["status"]: row["count"] for row in rows})

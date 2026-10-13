@@ -16,6 +16,27 @@ A colourful, responsive Flask + SQLite demo application with a parking dashboard
 
 > This is a classroom/demo application. It is not connected to physical parking sensors, ANPR cameras, payment gateways, or a production authentication system. “Live” status reflects the current local database and refreshes when the page is reloaded.
 
+## Required folder structure
+
+Files must be in these folders (Flask looks for `templates/` and `static/`):
+
+```text
+Smart_Parking_DevOps_Project/
+├── app.py
+├── test_app.py
+├── requirements.txt
+├── Dockerfile
+├── Jenkinsfile
+├── README.md
+├── .dockerignore
+├── .gitignore
+├── templates/   base.html  index.html  admin.html  _icons.html
+├── static/      style.css  app.js
+└── ansible/     deploy.yml  hosts.ini
+```
+
+`parking.db` is not needed — the app creates `data/parking.db` automatically on first run.
+
 ## Requirements
 
 - Python 3.10+ (Python 3.12 recommended)

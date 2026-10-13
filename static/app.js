@@ -21,6 +21,8 @@
   const filter = document.querySelector('[data-slot-filter]');
   const cards = [...document.querySelectorAll('[data-slot-card]')];
   const visibleCount = document.querySelector('[data-visible-count]');
+  const noResults = document.querySelector('[data-no-results]');
+  const quickButtons = [...document.querySelectorAll('[data-quick-filter]')];
   function applyFilters() {
     const q = (search?.value || '').trim().toLowerCase();
     const status = filter?.value || 'all';
@@ -32,10 +34,27 @@
       card.hidden = !show;
       if (show) visible++;
     });
-    if (visibleCount) visibleCount.textContent = `${visible} shown`;
+    if (visibleCount) visibleCount.textContent = `${visible} bay${visible === 1 ? '' : 's'} displayed`;
+    if (noResults) noResults.hidden = visible !== 0;
+    quickButtons.forEach(b => b.classList.toggle('active', b.dataset.quickFilter === status));
   }
   search?.addEventListener('input', applyFilters);
   filter?.addEventListener('change', applyFilters);
+  quickButtons.forEach(b => b.addEventListener('click', () => {
+    if (filter) { filter.value = b.dataset.quickFilter; applyFilters(); }
+  }));
+  document.querySelector('[data-refresh]')?.addEventListener('click', () => location.reload());
+
+  // Admin inventory search
+  const adminSearch = document.querySelector('[data-admin-search]');
+  const adminRows = [...document.querySelectorAll('[data-admin-row]')];
+  const adminEmpty = document.querySelector('[data-admin-empty]');
+  adminSearch?.addEventListener('input', () => {
+    const q = adminSearch.value.trim().toLowerCase();
+    let n = 0;
+    adminRows.forEach(r => { const show = (r.dataset.search || '').includes(q); r.hidden = !show; if (show) n++; });
+    if (adminEmpty) adminEmpty.hidden = n !== 0;
+  });
 
   document.querySelectorAll('[data-reserve-trigger]').forEach(button => {
     button.addEventListener('click', () => {
